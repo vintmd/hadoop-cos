@@ -112,6 +112,11 @@ public class CosFileSystem extends FileSystem {
                 uri, bucket, workingDir, owner, group, conf);
         BufferPool.getInstance().initialize(getConf());
 
+        // to show the retry relation configurations, need to print all config?
+        LOG.info("init cos file system, retry configuration, hadoop cos max retrys: {}, client max retrys: {}",
+                this.getConf().getInt(CosNConfigKeys.COSN_MAX_RETRIES_KEY, CosNConfigKeys.DEFAULT_MAX_RETRIES),
+                this.getConf().getInt(CosNConfigKeys.CLIENT_MAX_RETRIES_KEY, CosNConfigKeys.DEFAULT_CLIENT_MAX_RETRIES));
+
         // initialize the thread pool
         int uploadThreadPoolSize = this.getConf().getInt(
                 CosNConfigKeys.UPLOAD_THREAD_POOL_SIZE_KEY,

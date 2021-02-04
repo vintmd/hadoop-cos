@@ -102,6 +102,9 @@ public class CosNConfigKeys extends CommonConfigurationKeys {
     public static final String COSN_RANGER_TEMP_TOKEN_REFRESH_INTERVAL = "fs.cosn.ranger.temp.token.refresh.interval";
     public static final int DEFAULT_COSN_RANGER_TEMP_TOKEN_REFRESH_INTERVAL = 20;
 
+    public static final String CLIENT_SOCKET_TIMEOUTSEC = "fs.cosn.client.socket.timeoutsec";
+    public static final int DEFALUT_CLIENT_SOCKET_TIMEOUTSEC = 30;
+
     public static final String COSN_RANGER_PLUGIN_CLIENT_IMPL = "fs.cosn.ranger.plugin.client.impl";
     public static final String DEFAULT_COSN_RANGER_PLUGIN_CLIENT_IMPL  =
             "org.apache.hadoop.fs.cosn.ranger.client.RangerQcloudObjectStorageClientImpl";

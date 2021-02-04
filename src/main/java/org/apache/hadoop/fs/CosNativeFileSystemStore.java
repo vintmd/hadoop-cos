@@ -169,6 +169,11 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
             throw new IllegalArgumentException(exceptionMessage);
         }
 
+        // Set the socket read and write time out second
+        int socketTimeout = conf.getInt(CosNConfigKeys.CLIENT_SOCKET_TIMEOUTSEC,
+                CosNConfigKeys.DEFALUT_CLIENT_SOCKET_TIMEOUTSEC);
+        config.setSocketTimeout(socketTimeout * 1000); // sdk unit is the ms
+
         this.cosClient = new COSClient(this.cosCredentialProviderList, config);
     }
 
