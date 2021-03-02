@@ -2,6 +2,7 @@ package org.apache.hadoop.fs;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.qcloud.cos.model.HeadBucketResult;
 import com.qcloud.cos.utils.StringUtils;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
@@ -54,6 +55,7 @@ public class CosFileSystem extends FileSystem {
 
     private URI uri;
     private String bucket;
+    private boolean isMergeBucket;
     private NativeFileSystemStore store;
     private Path workingDir;
     private String owner = "Unknown";
@@ -111,6 +113,13 @@ public class CosFileSystem extends FileSystem {
                         "configuration: {}.",
                 uri, bucket, workingDir, owner, group, conf);
         BufferPool.getInstance().initialize(getConf());
+
+        // head the bucket to judge whether the merge bucket
+        this.isMergeBucket = false;
+        HeadBucketResult headBucketResult = this.store.headBucket(this.bucket);
+        if (headBucketResult.isMergeBucket()) {
+            this.isMergeBucket = true;
+        }
 
         // initialize the thread pool
         int uploadThreadPoolSize = this.getConf().getInt(
@@ -334,7 +343,6 @@ public class CosFileSystem extends FileSystem {
         LOG.debug("Ready to delete path: {}. recursive: {}.", f, recursive);
 
         checkPermission(f, AccessType.DELETE);
-
         FileStatus status;
         try {
             status = getFileStatus(f);
@@ -342,6 +350,7 @@ public class CosFileSystem extends FileSystem {
             LOG.debug("Delete called for '{}', but the file does not exist and returning the false.", f);
             return false;
         }
+
         Path absolutePath = makeAbsolute(f);
         String key = pathToKey(absolutePath);
         if (key.compareToIgnoreCase("/") == 0) {
@@ -359,7 +368,24 @@ public class CosFileSystem extends FileSystem {
                         + " as is a not empty directory and recurse option is" +
                         " false");
             }
+            // how to tell the result
+            if (!isMergeBucket) {
+                internalRecursiveDelete(key);
+            } else {
+                internalAutoRecursiveDelete(key);
+            }
+        } else {
+            LOG.debug("Delete the cos key [{}].", key);
+            store.delete(key);
+        }
 
+        if (!isMergeBucket) {
+            createParentDirectoryIfNecessary(f);
+        }
+        return true;
+    }
+
+    private void internalRecursiveDelete(String key) throws IOException {
             CosNDeleteFileContext deleteFileContext = new CosNDeleteFileContext();
             int deleteToFinishes = 0;
 
@@ -406,14 +432,12 @@ public class CosFileSystem extends FileSystem {
             } catch (Exception e) {
                 LOG.error("Delete the key failed.");
             }
+    }
 
-        } else {
-            LOG.debug("Delete the cos key [{}].", key);
-            store.delete(key);
-        }
-
-        createParentDirectoryIfNecessary(f);
-        return true;
+    // use by merge bucket which support recursive delete dirs by setting flag parameter
+    private void internalAutoRecursiveDelete(String key) throws IOException {
+        LOG.debug("Delete the cos key auto recursive [{}].", key);
+        store.deleteRecursive(key);
     }
 
     @Override
@@ -583,7 +607,13 @@ public class CosFileSystem extends FileSystem {
             }
         } catch (FileNotFoundException e) {
             validatePath(f);
-            return mkDirRecursively(f, permission);
+            boolean result;
+            if (isMergeBucket) {
+                result = mkDirAutoRecursively(f, permission);
+            } else {
+                result = mkDirRecursively(f, permission);
+            }
+            return result;
         }
     }
 
@@ -633,6 +663,27 @@ public class CosFileSystem extends FileSystem {
                 store.storeEmptyFile(folderPath);
             }
         }
+        return true;
+    }
+
+    /**
+     * Create a directory recursively auto by merge plan
+     * which the put object interface decide the dir which end with the "/"
+     *
+     * @param f          Absolute path to the directory
+     * @param permission Directory permissions
+     * @return Return true if the creation was successful,  throw a IOException.
+     * @throws IOException An IOException occurred when creating a directory object on COS.
+     */
+    public boolean mkDirAutoRecursively(Path f, FsPermission permission)
+            throws IOException {
+        LOG.debug("Make the directory recursively auto. Path: {}, FsPermission: {}.", f, permission);
+        // add the end '/' to the path which server auto create middle dir
+        String folderPath = pathToKey(makeAbsolute(f));
+        if (!folderPath.endsWith(PATH_DELIMITER)) {
+            folderPath += PATH_DELIMITER;
+        }
+        store.storeEmptyFile(folderPath);
         return true;
     }
 
@@ -746,11 +797,19 @@ public class CosFileSystem extends FileSystem {
             // The default root directory is definitely there.
         }
 
-        boolean result = false;
-        if (srcFileStatus.isDirectory()) {
-            result = this.copyDirectory(src, dst);
+        if (!isMergeBucket) {
+            return internalCopyAndDelete(src, dst, srcFileStatus.isDirectory());
         } else {
-            result = this.copyFile(src, dst);
+            return internalRename(src, dst);
+        }
+    }
+
+    private boolean internalCopyAndDelete(Path srcPath, Path dstPath, boolean isDir) throws IOException {
+        boolean result = false;
+        if (isDir) {
+            result = this.copyDirectory(srcPath, dstPath);
+        } else {
+            result = this.copyFile(srcPath, dstPath);
         }
 
         if (!result) {
@@ -759,8 +818,15 @@ public class CosFileSystem extends FileSystem {
             // ensure data security.
             return false;
         } else {
-            return this.delete(src, true);
+            return this.delete(srcPath, true);
         }
+    }
+
+    private boolean internalRename(Path srcPath, Path dstPath) throws IOException {
+        String srcKey = pathToKey(srcPath);
+        String dstKey = pathToKey(dstPath);
+        this.store.rename(srcKey, dstKey);
+        return true;
     }
 
     private boolean copyFile(Path srcPath, Path dstPath) throws IOException {
