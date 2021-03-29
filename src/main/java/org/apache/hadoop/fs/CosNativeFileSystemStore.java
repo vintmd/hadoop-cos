@@ -45,6 +45,7 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
     private int maxRetryTimes;
     private int trafficLimit;
     private boolean crc32cEnabled;
+    private boolean isMergeBucket;
     private CosEncryptionSecrets encryptionSecrets;
     private CustomerDomainEndpointResolver customerDomainEndpointResolver;
 
@@ -184,6 +185,7 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
         try {
             initCOSClient(uri, conf);
             this.bucketName = uri.getHost();
+            this.isMergeBucket = false;
             String storageClass = conf.get(CosNConfigKeys.COSN_STORAGE_CLASS_KEY);
             if (null != storageClass && !storageClass.isEmpty()) {
                 try {
@@ -204,6 +206,11 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
         } catch (Exception e) {
             handleException(e, "");
         }
+    }
+
+    @Override
+    public void setMergeBucket(boolean isMergeBucket)  {
+        this.isMergeBucket = isMergeBucket;
     }
 
     private void storeFileWithRetry(String key, InputStream inputStream,
@@ -516,8 +523,16 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
                     }
                 }
             }
+            boolean isFile = true;
+            if (isMergeBucket) {
+                if (objectMetadata.isFileModeDir() || key.equals(PATH_DELIMITER)) {
+                    isFile = false;
+                }
+            } else {
+                isFile = !key.endsWith(PATH_DELIMITER);
+            }
             FileMetadata fileMetadata =
-                    new FileMetadata(key, fileSize, mtime, !key.endsWith(PATH_DELIMITER),
+                    new FileMetadata(key, fileSize, mtime, isFile,
                             ETag, crc64ecm, crc32cm, versionId,
                             objectMetadata.getStorageClass(), userMetadata);
             // record the last request result info
