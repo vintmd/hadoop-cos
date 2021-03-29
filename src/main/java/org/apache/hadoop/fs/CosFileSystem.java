@@ -57,6 +57,8 @@ public class CosFileSystem extends FileSystem {
     private URI uri;
     private String bucket;
     private boolean isMergeBucket;
+    private boolean checkMergeBucket;
+    private int mergeBucketMaxListNum;
     private NativeFileSystemStore store;
     private Path workingDir;
     private String owner = "Unknown";
@@ -117,10 +119,24 @@ public class CosFileSystem extends FileSystem {
 
         // head the bucket to judge whether the merge bucket
         this.isMergeBucket = false;
-        HeadBucketResult headBucketResult = this.store.headBucket(this.bucket);
-        if (headBucketResult.isMergeBucket()) {
-            this.isMergeBucket = true;
+        this.checkMergeBucket = this.getConf().getBoolean(
+                CosNConfigKeys.OPEN_CHECK_MERGE_BUCKET,
+                CosNConfigKeys.DEFAULT_CHECK_MERGE_BUCKET
+        );
+
+        if (this.checkMergeBucket) { // control
+            HeadBucketResult headBucketResult = this.store.headBucket(this.bucket);
+            int mergeBucketMaxListNum = this.getConf().getInt(
+                    CosNConfigKeys.MERGE_BUCKET_MAX_LIST_NUM,
+                    CosNConfigKeys.DEFAULT_MERGE_BUCKET_MAX_LIST_NUM
+            );
+            if (headBucketResult.isMergeBucket()) {
+                this.isMergeBucket = true;
+                this.mergeBucketMaxListNum = mergeBucketMaxListNum;
+                this.store.setMergeBucket(true);
+            }
         }
+        LOG.info("cos file system bucket is merged {}", this.isMergeBucket);
 
         // initialize the thread pool
         int uploadThreadPoolSize = this.getConf().getInt(
@@ -445,7 +461,7 @@ public class CosFileSystem extends FileSystem {
         Path absolutePath = makeAbsolute(f);
         String key = pathToKey(absolutePath);
 
-        if (key.length() == 0) { // root always exists
+        if (key.length() == 0 || key.equals(PATH_DELIMITER)) { // root always exists
             return newDirectory(absolutePath);
         }
 
@@ -459,6 +475,10 @@ public class CosFileSystem extends FileSystem {
                 LOG.debug("Retrieve the cos key [{}] to find that it is a directory.", key);
                 return newDirectory(meta, absolutePath);
             }
+        }
+
+        if (isMergeBucket) {
+            throw new FileNotFoundException("No such file or directory in merge bucket'" + absolutePath + "'");
         }
 
         if (!key.endsWith(PATH_DELIMITER)) {
@@ -511,6 +531,10 @@ public class CosFileSystem extends FileSystem {
 
         Path absolutePath = makeAbsolute(f);
         String key = pathToKey(absolutePath);
+        int listMaxLength = COS_MAX_LISTING_LENGTH;
+        if (checkMergeBucket && isMergeBucket) {
+            listMaxLength = this.mergeBucketMaxListNum;
+        }
 
         if (key.length() > 0) {
             FileMetadata meta = store.retrieveMetadata(key);
@@ -527,7 +551,7 @@ public class CosFileSystem extends FileSystem {
         Set<FileStatus> status = new TreeSet<FileStatus>();
         String priorLastKey = null;
         do {
-            CosNPartialListing listing = store.list(key, COS_MAX_LISTING_LENGTH,
+            CosNPartialListing listing = store.list(key, listMaxLength,
                     priorLastKey, false);
             for (FileMetadata fileMetadata : listing.getFiles()) {
                 Path subPath = keyToPath(fileMetadata.getKey());
@@ -695,6 +719,7 @@ public class CosFileSystem extends FileSystem {
     @Override
     public FSDataInputStream open(Path f, int bufferSize) throws IOException {
         checkPermission(f, AccessType.READ);
+        LOG.debug("Open file [{}] to read, buffer [{}]", f, bufferSize);
 
         FileStatus fileStatus = getFileStatus(f); // will throw if the file doesn't
         // exist
