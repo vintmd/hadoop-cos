@@ -10,7 +10,7 @@ import com.qcloud.cos.region.Region;
 import com.qcloud.cos.utils.Base64;
 import com.qcloud.cos.utils.Jackson;
 import com.qcloud.cos.utils.StringUtils;
-import org.apache.commons.codec.binary.Hex;
+import com.qcloud.cos.thirdparty.org.apache.commons.codec.binary.Hex;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;

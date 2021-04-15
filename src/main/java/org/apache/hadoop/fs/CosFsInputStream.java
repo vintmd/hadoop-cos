@@ -3,6 +3,8 @@ package org.apache.hadoop.fs;
 import org.apache.hadoop.conf.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.hadoop.fs.CanUnbuffer;
+import org.apache.hadoop.fs.StreamCapabilities;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -12,8 +14,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static org.apache.hadoop.util.StringUtils.toLowerCase;
 
-public class CosFsInputStream extends FSInputStream {
+public class CosFsInputStream extends FSInputStream implements CanUnbuffer, StreamCapabilities {
     public static final Logger LOG =
             LoggerFactory.getLogger(CosFsInputStream.class);
 
@@ -347,6 +350,31 @@ public class CosFsInputStream extends FSInputStream {
         }
 
         return (int) remaining;
+    }
+
+    /**
+     * Closes the underlying cos buffer,
+     * clean the buffer which already get
+     * instance associated with the stream.
+     */
+    @Override
+    public synchronized void unbuffer() {
+        this.partRemaining = -1;
+        while (this.readBufferQueue.size() != 0) {
+            this.readBufferQueue.poll();
+        }
+        // unbuffer current buffer
+        this.buffer = null;
+    }
+
+    @Override
+    public boolean hasCapability(String capability) {
+        switch (toLowerCase(capability)) {
+            case StreamCapabilities.UNBUFFER:
+                return true;
+            default:
+                return false;
+        }
     }
 
     @Override

@@ -14,8 +14,6 @@ do
     rm -rf dep/${hadoop_version}
     mkdir -p dep/${hadoop_version}
     cp target/*.jar dep/${hadoop_version}/
-    cp target/*.asc dep/${hadoop_version}/
-    cp target/*.pom dep/${hadoop_version}/
 
     mvn versions:set -DnewVersion=${origin_version}
 done

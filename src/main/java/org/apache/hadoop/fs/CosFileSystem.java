@@ -1,7 +1,7 @@
 package org.apache.hadoop.fs;
 
-import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.qcloud.cos.thirdparty.com.google.common.base.Preconditions;
+import com.qcloud.cos.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.qcloud.cos.utils.StringUtils;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.classification.InterfaceAudience;
