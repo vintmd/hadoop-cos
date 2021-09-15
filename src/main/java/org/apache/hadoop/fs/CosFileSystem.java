@@ -525,7 +525,7 @@ public class CosFileSystem extends FileSystem {
      * </p>
      */
     @Override
-    public FileStatus[] listStatus(Path f) throws IOException {
+    public FileStatus[] listStatus(Path f) throws FileNotFoundException, IOException {
         LOG.debug("list status:" + f);
         checkPermission(f, AccessType.LIST);
 
@@ -572,6 +572,10 @@ public class CosFileSystem extends FileSystem {
             }
             priorLastKey = listing.getPriorLastKey();
         } while (priorLastKey != null);
+
+        if (status.size() == 0) {
+            throw new FileNotFoundException("No such file or directory:" + f);
+        }
 
         return status.toArray(new FileStatus[status.size()]);
     }
