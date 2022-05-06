@@ -1,5 +1,6 @@
 package org.apache.hadoop.fs;
 
+import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.CompleteMultipartUploadResult;
 import com.qcloud.cos.model.HeadBucketResult;
 import com.qcloud.cos.model.PartETag;
@@ -43,6 +44,9 @@ public interface NativeFileSystemStore {
                                                           List<PartETag> partETagList) throws IOException;
 
     void abortMultipartUpload(String key, String uploadId) throws IOException;
+
+    // must be called after init otherwise return null
+    COSClient getCosClient();
 
     String getUploadId(String key) throws IOException;
 

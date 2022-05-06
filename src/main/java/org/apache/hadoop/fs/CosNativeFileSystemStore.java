@@ -341,6 +341,11 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
         storeFileWithRetry(key, inputStream, md5Hash, contentLength);
     }
 
+    @Override
+    public COSClient getCosClient() {
+        return this.cosClient;
+    }
+
     // for cos, storeEmptyFile means create a directory
     @Override
     public void storeEmptyFile(String key) throws IOException {
