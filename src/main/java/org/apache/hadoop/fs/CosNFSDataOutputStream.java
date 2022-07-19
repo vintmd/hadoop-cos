@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.jcraft.jsch.IO;
 import com.qcloud.cos.model.CompleteMultipartUploadResult;
 import com.qcloud.cos.model.PartETag;
 import com.qcloud.cos.thirdparty.org.apache.commons.codec.binary.Hex;
@@ -173,6 +174,10 @@ public class CosNFSDataOutputStream extends OutputStream implements Abortable {
 
     @Override
     public synchronized void flush() throws IOException {
+        innerFlush(false);
+    }
+
+    private void innerFlush(boolean closeStream) throws IOException {
         this.checkOpened();
         if (!this.dirty) {
             LOG.debug("The stream is up-to-date, no need to refresh.");
@@ -184,7 +189,7 @@ public class CosNFSDataOutputStream extends OutputStream implements Abortable {
             initNewCurrentPartResource();
         }
 
-        this.doFlush();
+        this.doFlush(closeStream);
         // All data has been flushed to the Under Storage.
         this.dirty = false;
     }
@@ -197,7 +202,7 @@ public class CosNFSDataOutputStream extends OutputStream implements Abortable {
 
         LOG.info("Closing the output stream [{}].", this);
         try {
-            this.flush();
+            this.innerFlush(true);
             this.commit();
         } finally {
             this.closed = true;
@@ -302,11 +307,11 @@ public class CosNFSDataOutputStream extends OutputStream implements Abortable {
     /**
      * inner flush operation.
      */
-    private void doFlush() throws IOException {
+    private void doFlush(boolean closeStream) throws IOException {
         this.currentPartOutputStream.flush();
 
         // frequent flush may cause qps lower because of need wait upload finish
-        if (!this.flushCOSEnabled) {
+        if (!this.flushCOSEnabled && !closeStream) {
             return;
         }
 
