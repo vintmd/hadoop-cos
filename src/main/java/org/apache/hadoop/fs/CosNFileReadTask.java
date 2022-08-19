@@ -68,6 +68,7 @@ public class CosNFileReadTask implements Runnable {
                                     "retryIndex: [%d / %d], key: %s, range: [%d , %d], exception: %s",
                             retryIndex, this.socketErrMaxRetryTimes, this.key,
                             this.readBuffer.getStart(), this.readBuffer.getEnd(), ioException.toString());
+                    LOG.error(errMsg);
                     if (retryIndex <= this.socketErrMaxRetryTimes) {
                         LOG.info(errMsg, ioException);
                         long sleepLeast = retryIndex * 300L;

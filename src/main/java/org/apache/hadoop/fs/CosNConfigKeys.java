@@ -12,7 +12,7 @@ import org.apache.hadoop.fs.cosn.Unit;
 @InterfaceStability.Unstable
 public class CosNConfigKeys extends CommonConfigurationKeys {
     public static final String USER_AGENT = "fs.cosn.user.agent";
-    public static final String DEFAULT_USER_AGENT = "cos-hadoop-plugin-v8.1.6";
+    public static final String DEFAULT_USER_AGENT = "cos-hadoop-plugin-v8.1.6.2";
 
     public static final String TENCENT_EMR_VERSION_KEY = "fs.emr.version";
 
@@ -130,6 +130,10 @@ public class CosNConfigKeys extends CommonConfigurationKeys {
     // crc32c
     public static final String CRC32C_CHECKSUM_ENABLED = "fs.cosn.crc32c.checksum.enabled";
     public static final boolean DEFAULT_CRC32C_CHECKSUM_ENABLED = false;
+
+    // whether use direct read range
+    public static final String USE_DIRECT_READ = "fs.cosn.direct.read.enabled";
+    public static final boolean DEFAULT_USE_DIRECT_READ = true;
 
     public static final String HTTP_PROXY_IP = "fs.cosn.http.proxy.ip";
     public static final String HTTP_PROXY_PORT = "fs.cosn.http.proxy.port";

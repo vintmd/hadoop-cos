@@ -311,6 +311,8 @@ public class CosNFSInputStream extends FSInputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         this.checkOpened();
 
+        long start = System.currentTimeMillis();
+
         if (len == 0) {
             return 0;
         }
@@ -347,6 +349,10 @@ public class CosNFSInputStream extends FSInputStream {
         if (null != this.statistics && bytesRead > 0) {
             this.statistics.incrementBytesRead(bytesRead);
         }
+
+        long costMs = (System.currentTimeMillis() - start);
+        LOG.info("read object [{}], pos [{}], offset [{}], len [{}], costMs [{}]",
+                this.key, this.position, off, len, costMs);
 
         return bytesRead == 0 ? -1 : bytesRead;
     }

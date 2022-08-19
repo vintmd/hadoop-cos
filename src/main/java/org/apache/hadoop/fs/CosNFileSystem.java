@@ -6,10 +6,7 @@ import com.qcloud.chdfs.permission.RangerAccessType;
 import com.qcloud.cos.utils.StringUtils;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.cosn.BufferPool;
-import org.apache.hadoop.fs.cosn.CRC32CCheckSum;
-import org.apache.hadoop.fs.cosn.CRC64Checksum;
-import org.apache.hadoop.fs.cosn.Unit;
+import org.apache.hadoop.fs.cosn.*;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Progressable;
@@ -41,6 +38,7 @@ public class CosNFileSystem extends FileSystem {
     private URI uri;
     private String bucket;
     private boolean isPosixBucket;
+    private boolean isDirectRead;
     private NativeFileSystemStore nativeStore;
     private boolean isDefaultNativeStore;
     private Path workingDir;
@@ -140,6 +138,11 @@ public class CosNFileSystem extends FileSystem {
         long threadKeepAlive = this.getConf().getLong(
                 CosNConfigKeys.THREAD_KEEP_ALIVE_TIME_KEY,
                 CosNConfigKeys.DEFAULT_THREAD_KEEP_ALIVE_TIME);
+
+        this.isDirectRead = this.getConf().getBoolean(
+                CosNConfigKeys.USE_DIRECT_READ,
+                CosNConfigKeys.DEFAULT_USE_DIRECT_READ
+        );
         Preconditions.checkArgument(threadKeepAlive > 0,
                 String.format("The threadKeepAlive [%d] should be positive.", threadKeepAlive));
         this.boundedIOThreadPool = new ThreadPoolExecutor(
@@ -698,10 +701,18 @@ public class CosNFileSystem extends FileSystem {
         LOG.info("Opening '" + f + "' for reading");
         Path absolutePath = makeAbsolute(f);
         String key = pathToKey(absolutePath);
-        return new FSDataInputStream(new BufferedFSInputStream(
-                new CosNFSInputStream(this.getConf(), nativeStore, statistics, key,
-                        fileStatus.getLen(), this.boundedIOThreadPool),
-                bufferSize));
+
+        if (!this.isDirectRead) {
+            return new FSDataInputStream(new BufferedFSInputStream(
+                    new CosNFSInputStream(this.getConf(), nativeStore, statistics, key,
+                            fileStatus.getLen(), this.boundedIOThreadPool),
+                    bufferSize));
+        } else {
+            return new FSDataInputStream(new BufferedFSInputStream(
+                    new CosNFSDirectInputStream(this.getConf(), nativeStore, statistics, key,
+                            fileStatus.getLen(), this.boundedIOThreadPool),
+                    bufferSize));
+        }
     }
 
     @Override

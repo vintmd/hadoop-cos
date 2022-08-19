@@ -6,7 +6,7 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.qcloud.cos.model.CompleteMultipartUploadResult;
 import com.qcloud.cos.model.PartETag;
-import com.qcloud.cos.thirdparty.org.apache.commons.codec.binary.Hex;
+//import com.qcloud.cos.thirdparty.org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.output.NullOutputStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.cosn.Abortable;
@@ -610,10 +610,9 @@ public class CosNFSDataOutputStream extends OutputStream implements Abortable {
 
         @Override
         public String toString() {
-            return String.format("UploadPart{partNumber:%d, partSize: %d, md5Hash: %s, isLast: %s}",
+            return String.format("UploadPart{partNumber:%d, partSize: %d, isLast: %s}",
                     this.partNumber,
                     this.cosNByteBuffer.flipRead().remaining(),
-                    (this.md5Hash != null ? Hex.encodeHexString(this.md5Hash): "NULL"),
                     this.isLast);
         }
     }
