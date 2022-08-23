@@ -93,11 +93,15 @@ public class CosFileSystem extends FileSystem {
             this.isDefaultNativeStore = true;
         }
 
+        // print all cosn config
+        printCosnConfig(conf);
+
         rangerCredentialsClient = new RangerCredentialsClient();
         this.rangerCredentialsClient.doInitialize(conf, bucket);
 
         // required checkCustomAuth if ranger is enabled and custom authentication is enabled
         checkCustomAuth(conf);
+
 
         this.isPosixFSStore = this.nativeStore.headBucket(bucket).isMergeBucket();
         LOG.info("The cos bucket {} bucket.", isPosixFSStore ? "is the posix" : "is the normal");
@@ -463,9 +467,19 @@ public class CosFileSystem extends FileSystem {
     @Override
     public void close() throws IOException {
         LOG.info("begin to close cos file system");
+        this.rangerCredentialsClient.close();
         this.actualImplFS.close();
         if (null != this.nativeStore && this.isDefaultNativeStore) {
             this.nativeStore.close();
         }
     }
+
+    private void printCosnConfig(Configuration conf) {
+        for (Map.Entry<String, String> entry : this.getConf()) {
+            if (entry.getKey().startsWith(Constants.COSN_CONFIG_PREFIX)) {
+                LOG.info("print cosn config. key: {}, value: {}.", entry.getKey(), entry.getValue());
+            }
+        }
+    }
+
 }

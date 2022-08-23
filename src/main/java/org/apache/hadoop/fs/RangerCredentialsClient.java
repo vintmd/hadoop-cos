@@ -136,6 +136,8 @@ public class RangerCredentialsClient {
                 conf,
                 CosNConfigKeys.COSN_CREDENTIALS_PROVIDER);
 
+        log.info("begin to init ranger client impl cos class len {}, class {}", cosClasses.length,
+                Arrays.toString(cosClasses));
         if (cosClasses.length == 0) {
             this.enableRangerPluginPermissionCheck = false;
             return;
@@ -147,6 +149,7 @@ public class RangerCredentialsClient {
                 break;
             }
         }
+        log.info("begin to init ranger client impl enable ranger plugin permission {}", this.enableRangerPluginPermissionCheck);
 
         if (!this.enableRangerPluginPermissionCheck) {
             return;
@@ -161,7 +164,10 @@ public class RangerCredentialsClient {
             }
         }
 
+        log.info("begin to init ranger, range client impl class {}", rangerClientImplClass.getName());
+
         if (RangerCredentialsClient.rangerQcloudObjectStorageStorageClient == null) {
+            log.info("begin to init ranger, range client is null");
             synchronized (RangerCredentialsClient.class) {
                 if (RangerCredentialsClient.rangerQcloudObjectStorageStorageClient == null) {
                     try {
@@ -173,6 +179,7 @@ public class RangerCredentialsClient {
                         // set ranger policy url and other auth info.
                         // when use posix mode to query bucket. server side also auth the policy url.
                         // so need to pass these configurations to ofs java sdk which carried on when mount fs.
+                        log.info("begin to init ranger, begin to get ranger auth policy");
                         RangerAuthPolicyResponse rangerAuthPolicyResp =
                                 rangerQcloudObjectStorageStorageClient.getRangerAuthPolicy();
                         if (rangerAuthPolicyResp != null) {
@@ -182,14 +189,20 @@ public class RangerCredentialsClient {
                             if (rangerAuthPolicyResp.getAuthJarMd5() != null) {
                                 this.authJarMd5 = rangerAuthPolicyResp.getAuthJarMd5();
                             }
+                        } else {
+                            log.info("begin to init ranger, begin to get ranger auth policy, get null resp");
                         }
                     } catch (Exception e) {
                         log.error(String.format("init %s failed", CosNConfigKeys.COSN_RANGER_PLUGIN_CLIENT_IMPL), e);
                         throw new IOException(String.format("init %s failed",
                                 CosNConfigKeys.COSN_RANGER_PLUGIN_CLIENT_IMPL), e);
                     }
+                } else {
+                    log.info("begin to init ranger, range client is not null?");
                 }
             }
+        } else {
+            log.info("begin to init ranger, range client is not null but init?");
         }
     } // end of init ranger impl
 
@@ -206,4 +219,10 @@ public class RangerCredentialsClient {
         return this.enableRangerPluginPermissionCheck;
     }
 
+    public void close() {
+        if (RangerCredentialsClient.rangerQcloudObjectStorageStorageClient != null) {
+            RangerCredentialsClient.rangerQcloudObjectStorageStorageClient.close();
+            RangerCredentialsClient.rangerQcloudObjectStorageStorageClient = null;
+        }
+    }
 }
