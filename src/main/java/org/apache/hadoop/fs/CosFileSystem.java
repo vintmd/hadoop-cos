@@ -93,6 +93,8 @@ public class CosFileSystem extends FileSystem {
             this.isDefaultNativeStore = true;
         }
 
+        System.setProperty("com.Qcloud.services.cos.disableGetObjectMD5Validation", "true");
+
         rangerCredentialsClient = new RangerCredentialsClient();
         this.rangerCredentialsClient.doInitialize(conf, bucket);
 

@@ -106,12 +106,45 @@ public class CosNFileReadTask implements Runnable {
 
     // not thread safe
     public void retrieveBlock() throws IOException {
+        long reqStart = System.currentTimeMillis();
         InputStream inputStream = this.store.retrieveBlock(
                 this.key, this.readBuffer.getStart(),
                 this.readBuffer.getEnd());
+        long reqCostMs = (System.currentTimeMillis() - reqStart);
+
+        long start = System.currentTimeMillis();
+
+        // 1. first way
+        int readLen = 0;
+        int available = inputStream.available();
+        readLen = inputStream.read(this.readBuffer.getBuffer(), 0, readBuffer.getBuffer().length);
+
+        // 2. second way
+/*
+        int ret;
+        int off = 0;
+        for(int toRead = this.readBuffer.getBuffer().length; toRead > 0; off += ret) {
+            ret = inputStream.read(this.readBuffer.getBuffer(), off, toRead);
+            if (ret < 0) {
+                throw new IOException("Premature EOF from inputStream");
+            }
+            toRead -= ret;
+        }
+*/
+
+
+
+        // 3. past way
+/*
         IOUtils.readFully(
                 inputStream, this.readBuffer.getBuffer(), 0,
                 readBuffer.getBuffer().length);
+*/
+        long costMs = (System.currentTimeMillis() - start);
+
+        LOG.info("copy data from input stream to buffer done, key {}, len {}, reqCostMs {}, costMs {}, " +
+                "range start {}, range end {}, available {}, readLen {}", this.key, readBuffer.getBuffer().length, reqCostMs, costMs,
+                this.readBuffer.getStart(), this.readBuffer.getEnd(), available, readLen);
         int readEof = inputStream.read();
         if (readEof != -1) {
             LOG.error("Expect to read the eof, but the return is not -1. key: {}.", this.key);
