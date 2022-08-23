@@ -159,4 +159,8 @@ public class CosNConfigKeys extends CommonConfigurationKeys {
     public static final boolean DEFAULT_COSN_FLUSH_ENABLED = true;
     public static final String COSN_MAPDISK_DELETEONEXIT_ENABLED = "fs.cosn.map_disk.delete_on_exit.enabled";
     public static final boolean DEFAULT_COSN_MAPDISK_DELETEONEXIT_ENABLED = true;
+
+    public static final String COSN_SOCKET_BUFFER_SIZE = "fs.cosn.socket.buffer.size";
+    public static final long DEFAULT_COSN_SOCKET_BUFFER_SIZE = 8 * Unit.KB;
 }
+

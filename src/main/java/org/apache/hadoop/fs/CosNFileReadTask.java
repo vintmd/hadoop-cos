@@ -115,9 +115,11 @@ public class CosNFileReadTask implements Runnable {
         long start = System.currentTimeMillis();
 
         // 1. first way
+/*
         int readLen = 0;
         int available = inputStream.available();
         readLen = inputStream.read(this.readBuffer.getBuffer(), 0, readBuffer.getBuffer().length);
+*/
 
         // 2. second way
 /*
@@ -131,20 +133,15 @@ public class CosNFileReadTask implements Runnable {
             toRead -= ret;
         }
 */
-
-
-
         // 3. past way
-/*
         IOUtils.readFully(
                 inputStream, this.readBuffer.getBuffer(), 0,
                 readBuffer.getBuffer().length);
-*/
         long costMs = (System.currentTimeMillis() - start);
 
         LOG.info("copy data from input stream to buffer done, key {}, len {}, reqCostMs {}, costMs {}, " +
-                "range start {}, range end {}, available {}, readLen {}", this.key, readBuffer.getBuffer().length, reqCostMs, costMs,
-                this.readBuffer.getStart(), this.readBuffer.getEnd(), available, readLen);
+                "range start {}, range end {}", this.key, readBuffer.getBuffer().length, reqCostMs, costMs,
+                this.readBuffer.getStart(), this.readBuffer.getEnd());
         int readEof = inputStream.read();
         if (readEof != -1) {
             LOG.error("Expect to read the eof, but the return is not -1. key: {}.", this.key);
