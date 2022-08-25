@@ -161,6 +161,7 @@ public class RangerCredentialsClient {
             }
         }
 
+        log.info("begin to init ranger client");
         if (RangerCredentialsClient.rangerQcloudObjectStorageStorageClient == null) {
             synchronized (RangerCredentialsClient.class) {
                 if (RangerCredentialsClient.rangerQcloudObjectStorageStorageClient == null) {

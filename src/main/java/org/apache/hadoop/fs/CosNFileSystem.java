@@ -1209,7 +1209,9 @@ public class CosNFileSystem extends FileSystem {
     }
 
     private void checkPermission(Path f, RangerAccessType rangerAccessType) throws IOException {
+/*
         this.rangerCredentialsClient.doCheckPermission(f, rangerAccessType, getOwnerId(), getWorkingDirectory());
+*/
     }
 
     private Path makeAbsolute(Path path) {
