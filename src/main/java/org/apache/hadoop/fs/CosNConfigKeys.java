@@ -135,6 +135,9 @@ public class CosNConfigKeys extends CommonConfigurationKeys {
     public static final String USE_DIRECT_READ = "fs.cosn.direct.read.enabled";
     public static final boolean DEFAULT_USE_DIRECT_READ = true;
 
+    public static final String USE_COMBINE_READ = "fs.cosn.combine.read.enabled";
+    public static final boolean DEFAULT_USE_COMBINE_READ = false;
+
     public static final String HTTP_PROXY_IP = "fs.cosn.http.proxy.ip";
     public static final String HTTP_PROXY_PORT = "fs.cosn.http.proxy.port";
     public static final int DEFAULT_HTTP_PROXY_PORT = -1;
