@@ -228,6 +228,11 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
                         CosNConfigKeys.MAX_CONNECTION_NUM,
                         CosNConfigKeys.DEFAULT_MAX_CONNECTION_NUM));
 
+        long socketBufferSize = conf.getLong(
+                CosNConfigKeys.COSN_SOCKET_BUFFER_SIZE,
+                CosNConfigKeys.DEFAULT_COSN_SOCKET_BUFFER_SIZE);
+        config.setSocketBufferSize(new Long(socketBufferSize).intValue());
+
         // 设置是否进行服务器端加密
         String serverSideEncryptionAlgorithm = conf.get(CosNConfigKeys.COSN_SERVER_SIDE_ENCRYPTION_ALGORITHM, "");
         CosNEncryptionMethods cosSSE = CosNEncryptionMethods.getMethod(

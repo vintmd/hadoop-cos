@@ -46,6 +46,7 @@ public class CosNFileSystem extends FileSystem {
     private String bucket;
     private boolean isPosixBucket;
     private boolean isDirectRead;
+    private boolean isCombineRead;
     private NativeFileSystemStore nativeStore;
     private boolean isDefaultNativeStore;
     private Path workingDir;
@@ -163,6 +164,11 @@ public class CosNFileSystem extends FileSystem {
         this.isDirectRead = this.getConf().getBoolean(
                 CosNConfigKeys.USE_DIRECT_READ,
                 CosNConfigKeys.DEFAULT_USE_DIRECT_READ
+        );
+
+        this.isCombineRead = this.getConf().getBoolean(
+                CosNConfigKeys.USE_COMBINE_READ,
+                CosNConfigKeys.DEFAULT_USE_COMBINE_READ
         );
         Preconditions.checkArgument(threadKeepAlive > 0,
                 String.format("The threadKeepAlive [%d] should be positive.", threadKeepAlive));
@@ -729,6 +735,13 @@ public class CosNFileSystem extends FileSystem {
             page_caches.put(key, page_cache);
         }
 
+        if (this.isCombineRead) {
+            return new FSDataInputStream(new BufferedFSInputStream(
+                    new CosNFSCombineInputStream(this.getConf(), nativeStore, statistics, key,
+                            fileStatus.getLen(), this.boundedIOThreadPool),
+                    bufferSize));
+        }
+
         if (!this.isDirectRead) {
             return new FSDataInputStream(new BufferedFSInputStream(
                     new CosNFSInputStream(this.getConf(), nativeStore, statistics, key,
@@ -1223,7 +1236,9 @@ public class CosNFileSystem extends FileSystem {
     }
 
     private void checkPermission(Path f, RangerAccessType rangerAccessType) throws IOException {
+/*
         this.rangerCredentialsClient.doCheckPermission(f, rangerAccessType, getOwnerId(), getWorkingDirectory());
+*/
     }
 
     private Path makeAbsolute(Path path) {
