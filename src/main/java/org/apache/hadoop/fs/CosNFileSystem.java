@@ -22,6 +22,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
+import java.lang.Thread;
+import java.util.Random;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import org.apache.commons.lang3.tuple.*;
 
 /*
  * the origin hadoop cos implements
@@ -34,6 +39,8 @@ public class CosNFileSystem extends FileSystem {
     static final Charset METADATA_ENCODING = StandardCharsets.UTF_8;
     // The length of name:value pair should be less than or equal to 1024 bytes.
     static final int MAX_XATTR_SIZE = 1024;
+    static final int PAGE_CACHE_BUFFER_NUM_DEFAULT = 64;
+    static final int PAGE_CACHE_BUFFER_SIZE_DEFAULT = 4;
 
     private URI uri;
     private String bucket;
@@ -46,6 +53,8 @@ public class CosNFileSystem extends FileSystem {
     private String group = "Unknown";
     private ExecutorService boundedIOThreadPool;
     private ExecutorService boundedCopyThreadPool;
+    private String clientId;
+    private com.google.common.cache.Cache<String, com.google.common.cache.Cache<Pair<Long, Long>, byte[]>> page_caches;
 
     private RangerCredentialsClient rangerCredentialsClient;
 
@@ -88,6 +97,18 @@ public class CosNFileSystem extends FileSystem {
     public void initialize(URI uri, Configuration conf) throws IOException {
         super.initialize(uri, conf);
         setConf(conf);
+
+        // Make clientId
+        Random r = new Random();
+        String thread_full_name = Thread.currentThread().getName();
+        int pos = thread_full_name.indexOf('(');
+        if (pos != -1) {
+            thread_full_name = thread_full_name.substring(pos);
+        }
+        this.clientId =  thread_full_name + "_" + Thread.currentThread().getId() + "_" + r.nextLong();
+
+        // Prepare page cache for each file
+        page_caches = CacheBuilder.newBuilder().maximumSize(PAGE_CACHE_BUFFER_NUM_DEFAULT).build();
 
         if (null == this.bucket) {
             this.bucket = uri.getHost();
@@ -698,9 +719,15 @@ public class CosNFileSystem extends FileSystem {
         if (fileStatus.isDirectory()) {
             throw new FileNotFoundException("'" + f + "' is a directory");
         }
-        LOG.info("Opening '" + f + "' for reading");
+        LOG.info("ClientId: {}, opening {} for reading", this.clientId, f);
         Path absolutePath = makeAbsolute(f);
         String key = pathToKey(absolutePath);
+
+        com.google.common.cache.Cache<Pair<Long, Long>, byte[]> page_cache = page_caches.getIfPresent(key);
+        if (null == page_cache) {
+            page_cache = CacheBuilder.newBuilder().maximumSize(PAGE_CACHE_BUFFER_SIZE_DEFAULT).build();
+            page_caches.put(key, page_cache);
+        }
 
         if (!this.isDirectRead) {
             return new FSDataInputStream(new BufferedFSInputStream(
@@ -709,8 +736,8 @@ public class CosNFileSystem extends FileSystem {
                     bufferSize));
         } else {
             return new FSDataInputStream(new BufferedFSInputStream(
-                    new CosNFSDirectInputStream(this.getConf(), nativeStore, statistics, key,
-                            fileStatus.getLen(), this.boundedIOThreadPool),
+                    new CosNFSDirectInputStream(this.getConf(), this.clientId, nativeStore, statistics, key,
+                            fileStatus.getLen(), this.boundedIOThreadPool, page_cache),
                     bufferSize));
         }
     }

@@ -891,8 +891,9 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
     @Override
     public InputStream retrieveBlock(String key, long byteRangeStart,
                                      long byteRangeEnd) throws IOException {
-        LOG.debug("Retrieve the cos key: {}, byte range start: {}, byte range end: {}.", key, byteRangeStart,
-                byteRangeEnd);
+        LOG.info("Begin to retrieve the cos key: {}, byte range start: {}, byte range end: {}.",
+                key, byteRangeStart, byteRangeEnd);
+        long start = System.currentTimeMillis();
         try {
             GetObjectRequest request = new GetObjectRequest(this.bucketName,
                     key);
@@ -903,6 +904,9 @@ public class CosNativeFileSystemStore implements NativeFileSystemStore {
             this.setEncryptionMetadata(request, new ObjectMetadata());
             COSObject cosObject =
                     (COSObject) this.callCOSClientWithRetry(request);
+            long costMs = (System.currentTimeMillis() - start);
+            LOG.info("End to retrieve the cos key: {}, byte range start: {}, byte range end: {}, costMs: {}.",
+                    key, byteRangeStart, byteRangeEnd, costMs);
             return cosObject.getObjectContent();
         } catch (CosServiceException e) {
             String errMsg =

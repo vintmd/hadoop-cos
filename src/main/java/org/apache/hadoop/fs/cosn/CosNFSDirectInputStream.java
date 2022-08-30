@@ -1,5 +1,6 @@
 package org.apache.hadoop.fs.cosn;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.apache.commons.lang3.tuple.*;
 
 public class CosNFSDirectInputStream extends FSInputStream{
     public static final Logger LOG =
@@ -34,6 +36,10 @@ public class CosNFSDirectInputStream extends FSInputStream{
     private byte[] buffer;
     private boolean closed = false;
     private final int socketErrMaxRetryTimes;
+    // last read cache
+    com.google.common.cache.Cache<Pair<Long, Long>, byte[]> page_cache;
+    static final int READ_CACHE_SIZE = 16 * 1024;
+    private String clientId;
 
     private final ExecutorService readAheadExecutorService;
 
@@ -49,13 +55,16 @@ public class CosNFSDirectInputStream extends FSInputStream{
      */
     public CosNFSDirectInputStream(
             Configuration conf,
+            String clientId,
             NativeFileSystemStore store,
             FileSystem.Statistics statistics,
             String key,
             long fileSize,
-            ExecutorService readAheadExecutorService) {
+            ExecutorService readAheadExecutorService,
+            com.google.common.cache.Cache<Pair<Long, Long>, byte[]> page_cache) {
         super();
         this.conf = conf;
+        this.clientId = clientId;
         this.store = store;
         this.statistics = statistics;
         this.key = key;
@@ -68,6 +77,7 @@ public class CosNFSDirectInputStream extends FSInputStream{
                 CosNConfigKeys.DEFAULT_CLIENT_SOCKET_ERROR_MAX_RETRIES);
         this.readAheadExecutorService = readAheadExecutorService;
         this.closed = false;
+        this.page_cache = page_cache;
     }
 
     private synchronized void reopen(long pos) throws IOException {
@@ -116,7 +126,7 @@ public class CosNFSDirectInputStream extends FSInputStream{
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         this.checkOpened();
-        // LOG.info("begin read object [{}], offset [{}], len [{}], pos [{}]", this.key, off, len, this.position);
+        //LOG.info("Begin to read object [{}], offset [{}], len [{}], pos [{}]", this.key, off, len, this.position);
         long start = System.currentTimeMillis();
         if (len == 0) {
             return 0;
@@ -132,44 +142,57 @@ public class CosNFSDirectInputStream extends FSInputStream{
             byteEnd = this.fileSize - 1;
         }
 
-        CosNFSInputStream.ReadBuffer readBuffer = new CosNFSInputStream.ReadBuffer(byteStart, byteEnd);
-        if (readBuffer.getBuffer().length == 0) {
-            readBuffer.setStatus(CosNFSInputStream.ReadBuffer.SUCCESS);
+        Pair<Long, Long> range = Pair.<Long, Long>of(byteStart, byteEnd);
+        byte[] last_read_cache = this.page_cache.getIfPresent(range);
+        if(null != last_read_cache) {
+            LOG.info("ClientId: {}, manual page cache hit, key: {}, offset: {}, len: {}, range start: {}, range end: {}",
+                    this.clientId, this.key, off, len, byteStart, byteEnd);
+            this.buffer = last_read_cache;
         } else {
-            this.readAheadExecutorService.execute(
-                    new CosNFileReadTask(this.conf, this.key, this.store,
-                            readBuffer, this.socketErrMaxRetryTimes));
-        }
-
-        IOException innerException = null;
-
-        // LOG.info("push read object task [{}], offset [{}], len [{}], range start [{}], range end [{}]",
-          //      this.key, off, len, readBuffer.getStart(), readBuffer.getEnd());
-        readBuffer.lock();
-        //LOG.info("get lock of read object task [{}], offset [{}], len [{}]", this.key, off, len);
-        try {
-            readBuffer.await(CosNFSInputStream.ReadBuffer.INIT);
-            // LOG.info("after await read object task [{}], offset [{}], len [{}]", this.key, off, len);
-            if (readBuffer.getStatus() == CosNFSInputStream.ReadBuffer.ERROR) {
-                innerException = readBuffer.getException();
-                this.buffer = null;
-                this.bufferStart = -1;
-                this.bufferEnd = -1;
+            CosNFSInputStream.ReadBuffer readBuffer = new CosNFSInputStream.ReadBuffer(byteStart, byteEnd);
+            if (readBuffer.getBuffer().length == 0) {
+                readBuffer.setStatus(CosNFSInputStream.ReadBuffer.SUCCESS);
             } else {
-                this.buffer = readBuffer.getBuffer();
-                this.bufferStart = readBuffer.getStart();
-                this.bufferEnd = readBuffer.getEnd();
+                this.readAheadExecutorService.execute(
+                        new CosNFileReadTask(this.conf, this.clientId, this.key, this.store,
+                                readBuffer, this.socketErrMaxRetryTimes));
             }
 
-        } catch (InterruptedException e) {
-            LOG.warn("interrupted exception occurs when wait a read buffer.");
-        } finally {
-            readBuffer.unLock();
-        }
+            IOException innerException = null;
 
-        if (null == this.buffer) {
-            LOG.error(String.format("Null IO stream key:%s", this.key), innerException);
-            throw new IOException("Null IO stream.", innerException);
+            LOG.info("ClientId: {}, push read object task: {}, offset: {}, len: {}, range start: {}, range end: {}",
+                    this.clientId, this.key, off, len, readBuffer.getStart(), readBuffer.getEnd());
+            readBuffer.lock();
+            //LOG.info("get lock of read object task [{}], offset [{}], len [{}]", this.key, off, len);
+            try {
+                readBuffer.await(CosNFSInputStream.ReadBuffer.INIT);
+                LOG.info("ClientId: {}, after read object task: {}, offset: {}, len: {}, range start: {}, range end: {}",
+                        this.clientId, this.key, off, len, readBuffer.getStart(), readBuffer.getEnd());
+                if (readBuffer.getStatus() == CosNFSInputStream.ReadBuffer.ERROR) {
+                    innerException = readBuffer.getException();
+                    this.buffer = null;
+                    this.bufferStart = -1;
+                    this.bufferEnd = -1;
+                } else {
+                    this.buffer = readBuffer.getBuffer();
+                    this.bufferStart = readBuffer.getStart();
+                    this.bufferEnd = readBuffer.getEnd();
+                }
+
+            } catch (InterruptedException e) {
+                LOG.warn("interrupted exception occurs when wait a read buffer.");
+            } finally {
+                readBuffer.unLock();
+            }
+
+            if (null == this.buffer) {
+                LOG.error(String.format("Null IO stream key:%s", this.key), innerException);
+                throw new IOException("Null IO stream.", innerException);
+            }
+
+            if (len <= this.READ_CACHE_SIZE) {
+                this.page_cache.put(range, this.buffer);
+            }
         }
 
         int bytesRead = 0;
@@ -194,8 +217,8 @@ public class CosNFSDirectInputStream extends FSInputStream{
             this.statistics.incrementBytesRead(bytesRead);
         }
         long costMs = (System.currentTimeMillis() - start);
-        LOG.info("read object [{}], offset [{}], len [{}], costMs [{}], range start [{}], range end [{}]",
-                this.key, off, len, costMs, readBuffer.getStart(), readBuffer.getEnd());
+        LOG.info("ClientId: {}, read object: {}, offset: {}, len: {}, costMs: {}, range start: {}, range end: {}",
+                this.clientId, this.key, off, len, costMs, byteStart, byteEnd);
 
         return bytesRead == 0 ? -1 : bytesRead;
     }

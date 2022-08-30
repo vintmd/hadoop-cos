@@ -2,6 +2,7 @@ package org.apache.hadoop.fs;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.IOUtils;
+//import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +19,7 @@ public class CosNFileReadTask implements Runnable {
     private final NativeFileSystemStore store;
     private final CosNFSInputStream.ReadBuffer readBuffer;
     private final int socketErrMaxRetryTimes;
+    private final String clientId;
 
     /**
      * cos file read task
@@ -30,7 +32,15 @@ public class CosNFileReadTask implements Runnable {
                             NativeFileSystemStore store,
                             CosNFSInputStream.ReadBuffer readBuffer,
                             int socketErrMaxRetryTimes) {
+        this(conf, "", key, store, readBuffer, socketErrMaxRetryTimes);
+    }
+
+    public CosNFileReadTask(Configuration conf, String clientId, String key,
+                            NativeFileSystemStore store,
+                            CosNFSInputStream.ReadBuffer readBuffer,
+                            int socketErrMaxRetryTimes) {
         this.conf = conf;
+        this.clientId = clientId;
         this.key = key;
         this.store = store;
         this.readBuffer = readBuffer;
@@ -96,6 +106,8 @@ public class CosNFileReadTask implements Runnable {
         } finally {
             this.readBuffer.unLock();
         }
+        LOG.info("ClientId: {}, End of read task cos key: {}, byte range start: {}, byte range end: {}.",
+                this.clientId, this.key, this.readBuffer.getStart(),this.readBuffer.getEnd());
     }
 
     public void setFailResult(String msg, IOException e) {
@@ -109,9 +121,13 @@ public class CosNFileReadTask implements Runnable {
         InputStream inputStream = this.store.retrieveBlock(
                 this.key, this.readBuffer.getStart(),
                 this.readBuffer.getEnd());
+        long start = System.currentTimeMillis();
         IOUtils.readFully(
                 inputStream, this.readBuffer.getBuffer(), 0,
                 readBuffer.getBuffer().length);
+        long costMs = (System.currentTimeMillis() - start);
+        LOG.info("ClientId: {}, copy data from stream to buffer done, cos key: {}, len: {}, costMs:{}, byte range start: {}, byte range end: {}.",
+                this.clientId, this.key, this.readBuffer.getBuffer().length, costMs, this.readBuffer.getStart(),this.readBuffer.getEnd());
         int readEof = inputStream.read();
         if (readEof != -1) {
             LOG.error("Expect to read the eof, but the return is not -1. key: {}.", this.key);
