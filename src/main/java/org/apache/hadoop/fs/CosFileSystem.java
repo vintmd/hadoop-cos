@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 
+import static org.apache.hadoop.fs.CosNUtils.propagateBucketOptions;
+
 
 /**
  * A {@link FileSystem} for reading and writing files stored on
@@ -73,14 +75,15 @@ public class CosFileSystem extends FileSystem {
     }
 
     @Override
-    public void initialize(URI uri, Configuration conf) throws IOException {
+    public void initialize(URI uri, Configuration originalConf) throws IOException {
+        String bucket = uri.getHost();
+        Configuration conf = propagateBucketOptions(originalConf, bucket);
+
         super.initialize(uri, conf);
         setConf(conf);
-
         // initialize the things authorization related.
         UserGroupInformation.setConfiguration(conf);
 
-        String bucket = uri.getHost();
         this.uri = URI.create(uri.getScheme() + "://" + uri.getAuthority());
         this.workingDir = new Path("/user", System.getProperty("user.name"))
                 .makeQualified(this.uri, this.getWorkingDirectory());
